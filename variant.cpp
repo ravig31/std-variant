@@ -1,40 +1,43 @@
 #include <cassert>
+#include <cstddef>
 #include <memory>
 #include <type_traits>
 #include <utility>
 #include <variant>
 
+namespace ravig31 {
+
 template <typename... AlternativeTypes>
-class Variant {
+class variant {
     static constexpr int empty_index = -1;
 
    private:
     struct EmptyStorageTag {};
 
     template <typename FirstType, typename... RemainingTypes>
-    union Values {
+    union Storage {
         FirstType head;
-        Values<RemainingTypes...> tail;
+        Storage<RemainingTypes...> tail;
 
-        Values() : head{} {};
+        constexpr Storage() : head{} {};
 
-        Values(EmptyStorageTag) {};
+        constexpr Storage(EmptyStorageTag) {};
 
         template <typename InputType>
-        Values(std::in_place_index_t<0>, InputType&& value)
+        constexpr Storage(std::in_place_index_t<0>, InputType&& value)
             : head{std::forward<InputType>(value)} {}
 
         template <std::size_t I, typename InputType>
             requires(I > 0)
-        Values(std::in_place_index_t<I>, InputType&& value)
+        constexpr Storage(std::in_place_index_t<I>, InputType&& value)
             : tail{std::in_place_index<I - 1>, std::forward<InputType>(value)} {}
 
-        constexpr ~Values() {};
+        constexpr ~Storage() {};
 
-        // no template for Values means its the current specilisation, which makse sense here as we
+        // no template for Storage means its the current specilisation, which makse sense here as we
         // are just copying
         constexpr void
-        create_from_copy(const Values& source, int current_active_index, int travel_count) {
+        create_from_copy(const Storage& source, int current_active_index, int travel_count) {
             if (travel_count == current_active_index) {
                 std::construct_at(std::addressof(head), source.head);
                 return;
@@ -45,7 +48,7 @@ class Variant {
         }
 
         constexpr void
-        assign_from_copy(const Values& source, int current_active_index, int travel_count) {
+        assign_from_copy(const Storage& source, int current_active_index, int travel_count) {
             if (travel_count == current_active_index) {
                 head = source.head;
                 return;
@@ -55,7 +58,7 @@ class Variant {
         }
 
         constexpr void
-        create_from_move(Values& source, int current_active_index, int travel_count) {
+        create_from_move(Storage& source, int current_active_index, int travel_count) {
             if (travel_count == current_active_index) {
                 std::construct_at(std::addressof(head), std::move(source.head));
                 return;
@@ -66,7 +69,7 @@ class Variant {
         }
 
         constexpr void
-        assign_from_move(Values& source, int current_active_index, int travel_count) {
+        assign_from_move(Storage& source, int current_active_index, int travel_count) {
             if (travel_count == current_active_index) {
                 head = std::move(source.head);
                 return;
@@ -85,7 +88,7 @@ class Variant {
             }
         }
 
-        constexpr void swap_active(Values& other, int current_active_index, int travel_count) {
+        constexpr void swap_active(Storage& other, int current_active_index, int travel_count) {
             if (current_active_index == travel_count) {
                 using std::swap;
                 swap(head, other.head);
@@ -106,41 +109,41 @@ class Variant {
     };
 
     template <typename LastType>
-    union Values<LastType> {
+    union Storage<LastType> {
         LastType head;
 
-        Values() : head{} {};
+        constexpr Storage() : head{} {};
 
-        Values(EmptyStorageTag) {};
+        constexpr Storage(EmptyStorageTag) {};
 
         template <typename InputType>
-        Values(std::in_place_index_t<0>, InputType&& value)
+        constexpr Storage(std::in_place_index_t<0>, InputType&& value)
             : head{std::forward<InputType>(value)} {}
 
-        constexpr ~Values() {};
+        constexpr ~Storage() {};
 
         constexpr void
-        create_from_copy(const Values& source, int current_active_index, int travel_count) {
+        create_from_copy(const Storage& source, int current_active_index, int travel_count) {
             assert(travel_count == current_active_index);
             std::construct_at(std::addressof(head), source.head);
             return;
         }
 
         constexpr void
-        assign_from_copy(const Values& source, int current_active_index, int travel_count) {
+        assign_from_copy(const Storage& source, int current_active_index, int travel_count) {
             assert(travel_count == current_active_index);
             head = source.head;
         }
 
         constexpr void
-        create_from_move(Values& source, int current_active_index, int travel_count) {
+        create_from_move(Storage& source, int current_active_index, int travel_count) {
             assert(travel_count == current_active_index);
             std::construct_at(std::addressof(head), std::move(source.head));
             return;
         }
 
         constexpr void
-        assign_from_move(Values& source, int current_active_index, int travel_count) {
+        assign_from_move(Storage& source, int current_active_index, int travel_count) {
             assert(travel_count == current_active_index);
             head = std::move(source.head);
         }
@@ -151,7 +154,7 @@ class Variant {
             std::construct_at(std::addressof(head), std::forward<InputType>(value));
         }
 
-        constexpr void swap_active(Values& other, int current_active_index, int travel_count) {
+        constexpr void swap_active(Storage& other, int current_active_index, int travel_count) {
             assert(current_active_index == travel_count);
             using std::swap;
             swap(head, other.head);
@@ -176,8 +179,8 @@ class Variant {
         }
     }
 
-    template <int I, typename StorageType>
-    auto& access(StorageType& data) const {
+    template <std::size_t I, typename StorageType>
+    constexpr auto& access(StorageType& data) const {
         if constexpr (I == 0)
             return data.head;
         else
@@ -186,18 +189,19 @@ class Variant {
 
     int _active_index;
 
-    Values<AlternativeTypes...> _data;
+    Storage<AlternativeTypes...> _data;
 
    public:
-    Variant() : _active_index{}, _data{} {}
+    constexpr variant() : _active_index{}, _data{} {}
 
     // copy constructor
-    Variant(const Variant& other) : _active_index{other._active_index}, _data{EmptyStorageTag{}} {
+    constexpr variant(const variant& other)
+        : _active_index{other._active_index}, _data{EmptyStorageTag{}} {
         if (_active_index != empty_index) _data.create_from_copy(other._data, _active_index, 0);
     }
 
     // copy assignment
-    Variant& operator=(const Variant& other) {
+    variant& operator=(const variant& other) {
         if (this == std::addressof(other)) return *this;
 
         // case 1: slot in the source data to the destination
@@ -219,12 +223,13 @@ class Variant {
     }
 
     // move constructor
-    Variant(Variant&& other) : _active_index{other._active_index}, _data{EmptyStorageTag{}} {
+    constexpr variant(variant&& other) noexcept
+        : _active_index{other._active_index}, _data{EmptyStorageTag{}} {
         if (_active_index != empty_index) _data.create_from_move(other._data, _active_index, 0);
     }
 
     // move assignment
-    Variant& operator=(Variant&& other) {
+    variant& operator=(variant&& other) {
         if (this == std::addressof(other)) return *this;
 
         // case 1: slot in the source data to the destination
@@ -247,8 +252,8 @@ class Variant {
 
     // explicit constructor from an AlternativeType
     template <typename InputType>
-        requires(!std::is_same_v<std::remove_cvref_t<InputType>, Variant>)
-    constexpr explicit Variant(InputType&& value)
+        requires(!std::is_same_v<std::remove_cvref_t<InputType>, variant>)
+    constexpr explicit variant(InputType&& value)
         : _active_index(type_index<std::remove_cvref_t<InputType>, AlternativeTypes...>()),
           _data(
               std::in_place_index_t<
@@ -257,8 +262,8 @@ class Variant {
 
     // converting assignment
     template <typename InputType>
-        requires(!std::is_same_v<std::remove_cvref_t<InputType>, Variant>)
-    constexpr Variant<AlternativeTypes...>& operator=(InputType&& value) {
+        requires(!std::is_same_v<std::remove_cvref_t<InputType>, variant>)
+    constexpr variant<AlternativeTypes...>& operator=(InputType&& value) {
         constexpr auto target_index =
             type_index<std::remove_cvref_t<InputType>, AlternativeTypes...>();
 
@@ -282,7 +287,7 @@ class Variant {
     }
 
     // swapping
-    void swap(Variant<AlternativeTypes...>& other) noexcept {
+    void swap(variant<AlternativeTypes...>& other) noexcept {
         if (this == std::addressof(other)) return;
 
         if (_active_index == other._active_index) {
@@ -290,38 +295,38 @@ class Variant {
             return;
         }
 
-        Variant temp(std::move(*this));
+        variant temp(std::move(*this));
         *this = std::move(other);
         other = std::move(temp);
     }
 
     // destructor
-    constexpr ~Variant() {
+    constexpr ~variant() {
         if (_active_index != empty_index) _data.destroy(_active_index, 0);
     }
 
-    int index() const { return _active_index; }
+    constexpr std::size_t index() const noexcept { return static_cast<std::size_t>(_active_index); }
 
     // access by index
-    template <int I>
-    auto& get() {
-        if (I != _active_index) throw std::bad_variant_access();
-        static_assert(I >= 0 && I < sizeof...(AlternativeTypes), "alternative index out of bounds");
+    template <std::size_t I>
+    constexpr auto& get() {
+        if (I != index()) throw std::bad_variant_access();
+        static_assert(I < sizeof...(AlternativeTypes), "alternative index out of bounds");
 
         return access<I>(_data);
     }
 
-    template <int I>
-    const auto& get() const {
-        if (I != _active_index) throw std::bad_variant_access();
-        static_assert(I >= 0 && I < sizeof...(AlternativeTypes), "alternative index out of bounds");
+    template <std::size_t I>
+    constexpr const auto& get() const {
+        if (I != index()) throw std::bad_variant_access();
+        static_assert(I < sizeof...(AlternativeTypes), "alternative index out of bounds");
 
         return access<I>(_data);
     }
 
     // access by type
     template <typename TargetType>
-    auto& get() {
+    constexpr auto& get() {
         static_assert(
             (0 + ... + std::is_same_v<TargetType, AlternativeTypes>) == 1,
             "type must appear exactly once");
@@ -331,7 +336,7 @@ class Variant {
     }
 
     template <typename TargetType>
-    const auto& get() const {
+    constexpr const auto& get() const {
         static_assert(
             (0 + ... + std::is_same_v<TargetType, AlternativeTypes>) == 1,
             "type must appear exactly once");
@@ -343,30 +348,24 @@ class Variant {
     constexpr bool valueless_by_exception() const noexcept { return _active_index == empty_index; }
 };
 
-struct Tracked {
-    inline static int destructions = 0;
-
-    ~Tracked() { ++destructions; }
-};
-
-struct ThrowOnCopy {
-    ThrowOnCopy() = default;
-
-    ThrowOnCopy(ThrowOnCopy&&) = default;
-
-    ThrowOnCopy(const ThrowOnCopy&) { throw 42; }
-
-    ThrowOnCopy& operator=(const ThrowOnCopy&) = default;
-};
-
-int main() {
-    Variant<int, std::string> value(std::string{"hello"});
-
-    value.get<std::string>() = "changed";
-    assert(value.get<1>() == "changed");
-
-    const auto& view = value;
-    assert(view.get<std::string>() == "changed");
-
-    static_assert(std::is_same_v<decltype(view.get<std::string>()), const std::string&>);
+template <std::size_t I, typename... AlternativeTypes>
+constexpr decltype(auto) get(const variant<AlternativeTypes...>& value) {
+    return value.template get<I>();
 }
+
+template <typename TargetType, typename... AlternativeTypes>
+constexpr TargetType get(const variant<AlternativeTypes...>& value) {
+    return value.template get<TargetType>();
+}
+
+template <std::size_t I, typename... AlternativeTypes>
+constexpr decltype(auto) get(variant<AlternativeTypes...>& value) {
+    return value.template get<I>();
+}
+
+template <typename TargetType, typename... AlternativeTypes>
+constexpr TargetType get(variant<AlternativeTypes...>& value) {
+    return value.template get<TargetType>();
+}
+
+}  // namespace ravig31

@@ -1,1 +1,122 @@
 # std-variant
+
+An implementation of `std::variant` to understand how one object can hold different types, with only one alternative active at a time. The storage is a recursive union, with an index to track the active alternative. `variant.cpp` contains `ravig31::variant`; `tmp/practice.cpp` is where I built it step by step and is kept locally, outside version control.
+
+## Concepts I learnt
+
+### Template syntax and type selection
+
+#### Parameter packs
+
+```cpp
+template <typename... AlternativeTypes>
+```
+
+This collects all types into one pack. It accepts zero or more types.
+
+```cpp
+template <typename FirstType, typename... RemainingTypes>
+```
+
+This gives the first type a separate name and collects the remaining types into a pack. It requires at least one type.
+
+#### `if constexpr`: using an `else`
+
+An early return does not stop template instantiation. Code outside the discarded branch still gets instantiated.
+
+```cpp
+if constexpr (I == 0) {
+    return data.head;
+} else {
+    return access<I - 1>(data.tail);
+}
+```
+
+The `else` matters here. When `I == 0`, the compiler drops the recursive branch. Without it, the compiler still tries to instantiate the next step, even though the first branch returns.
+
+#### `requires`
+
+A `requires` clause makes a template available only when a compile-time condition is true.
+
+```cpp
+template <int N>
+    requires(N > 5)
+void example() {}
+```
+
+#### `.template` before a member template call
+
+```cpp
+tail.template create_from_value<I - 1>(
+    std::forward<InputType>(value));
+```
+
+When the object's type depends on template parameters, the compiler needs to know that the member is a template. The `template` keyword resolves the ambiguity with `<` being parsed as a less-than operator.
+
+#### `std::in_place_index_t`
+
+`std::in_place_index_t<I>` is a small tag type that carries an index in its type. It lets a constructor receive a compile-time index through an ordinary argument.
+
+```cpp
+Storage(std::in_place_index_t<I>, InputType&& value);
+```
+
+#### `std::remove_cvref_t`
+
+Removes references and top-level `const` or `volatile` qualifiers from a type, e.g. `const int&` becomes plain `int`.
+
+I use it to compare the input type against the alternatives, without references or qualifiers affecting the match.
+
+### Object lifetime and moving
+
+#### Converting constructors
+
+A non-`explicit` constructor can allow an implicit conversion from another type:
+
+```cpp
+X(int value);           // Allows X object = 5;
+explicit X(int value);  // Requires direct initialisation, e.g. X object(5);
+```
+
+My constructor from an alternative value is `explicit`. It creates a new variant; assignment updates one that already exists.
+
+#### `std::construct_at`
+
+Constructs an object in existing storage, rather than allocating new memory.
+
+```cpp
+std::construct_at(std::addressof(head), value);
+```
+
+It takes a typed pointer and the constructor arguments. It also supports construction during constant evaluation where the language rules allow it. Both `construct_at` and `destroy_at` come from `<memory>`.
+
+#### `std::destroy_at`
+
+Calls the destructor of an object at a specific memory location without deallocating the memory underneath.
+
+```cpp
+std::destroy_at(std::addressof(head));
+```
+
+It is a clean way to end an object's lifetime while keeping the storage. For the variant, only the active alternative gets destroyed.
+
+#### Why moving needs a non-const source
+
+Moving usually needs to steal resources or modify the source's internal state, so move operations take a non-const source. The source still exists afterwards and still needs to be destroyed.
+
+#### `std::forward`
+
+Used with a forwarding reference such as `InputType&&` in a deduced function template. It preserves the input's value category: an lvalue stays an lvalue, and an rvalue is forwarded as an rvalue.
+
+This lets the stored alternative copy or move as appropriate. The value needs to be forwarded at each recursive call too.
+
+### Finding the right swap
+
+#### Argument-dependent lookup
+
+```cpp
+using std::swap;
+swap(head, other.head);
+```
+
+The unqualified call lets the compiler find a custom `swap` in the type's namespace. `std::swap` is available as a fallback. Calling `std::swap` directly skips that lookup for a custom overload.
