@@ -1,6 +1,6 @@
 # std-variant
 
-An implementation of `std::variant` to understand how one object can hold different types, with only one alternative active at a time. The storage is a recursive union, with an index to track the active alternative. `variant.cpp` contains `ravig31::variant`; `tmp/practice.cpp` is where I built it step by step and is kept locally, outside version control.
+An implementation of `std::variant`. The storage is a recursive union, with an index to track the active alternative. `variant.cpp` contains `ravig31::variant`; `tmp/practice.cpp` is where I built it step by step and is kept locally, outside version control.
 
 ## Concepts I learnt
 
