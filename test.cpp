@@ -18,14 +18,14 @@ using PointerVariant = ravig31::variant<int, std::unique_ptr<int>>;
 static_assert(std::is_same_v<decltype(ravig31::get<0>(std::declval<StringVariant&>())), int&>);
 static_assert(std::is_same_v<
               decltype(ravig31::get<1>(std::declval<const StringVariant&>())), const std::string&>);
-// The required free type-based get returns a value; the member returns a reference.
+// Index-based and type-based get preserve references and constness.
 static_assert(std::is_same_v<
-              decltype(ravig31::get<std::string>(std::declval<StringVariant&>())), std::string>);
+              decltype(ravig31::get<std::string>(std::declval<StringVariant&>())), std::string&>);
 static_assert(
-    std::is_same_v<decltype(ravig31::get<int>(std::declval<const StringVariant&>())), int>);
+    std::is_same_v<decltype(ravig31::get<int>(std::declval<const StringVariant&>())), const int&>);
 static_assert(
     std::is_same_v<
-        decltype(std::declval<const StringVariant&>().get<std::string>()), const std::string&>);
+        decltype(ravig31::get<std::string>(std::declval<const StringVariant&>())), const std::string&>);
 static_assert(std::is_same_v<decltype(std::declval<StringVariant>().index()), std::size_t>);
 static_assert(noexcept(std::declval<const StringVariant&>().index()));
 static_assert(std::is_nothrow_move_constructible_v<StringVariant>);
@@ -50,12 +50,12 @@ void construction_and_access() {
     assert(!value.valueless_by_exception());
 
     StringVariant text(std::string{"hello"});
-    text.get<std::string>() = "changed";
+    ravig31::get<std::string>(text) = "changed";
     assert(ravig31::get<1>(text) == "changed");
     const auto& view = text;
     assert(ravig31::get<1>(view) == "changed");
     assert(ravig31::get<std::string>(view) == "changed");
-    assert(view.get<std::string>() == "changed");
+    assert(ravig31::get<std::string>(view) == "changed");
 
     bool threw = false;
     try {
@@ -72,68 +72,94 @@ void construction_and_access() {
     assert(ravig31::get<0>(duplicate) == 12);
 }
 
+void get_returns_references() {
+    StringVariant value(std::string{"hello"});
+    auto& text = ravig31::get<std::string>(value);
+    text += " world";
+    assert(ravig31::get<std::string>(value) == "hello world");
+    assert(std::addressof(text) == std::addressof(ravig31::get<1>(value)));
+
+    const auto& view = value;
+    const auto& constant_text = ravig31::get<std::string>(view);
+    assert(std::addressof(constant_text) == std::addressof(text));
+    assert(constant_text == "hello world");
+
+    PointerVariant pointer(std::make_unique<int>(42));
+    auto& stored = ravig31::get<std::unique_ptr<int>>(pointer);
+    assert(*stored == 42);
+    assert(std::addressof(stored) == std::addressof(ravig31::get<1>(pointer)));
+
+    bool threw = false;
+    try {
+        (void)ravig31::get<int>(value);
+    } catch (const std::bad_variant_access&) {
+        threw = true;
+    }
+    assert(threw);
+}
+
 void copying_and_assignment() {
     StringVariant source(std::string{"hello"});
     StringVariant copied(source);  // Non-const source must select the copy constructor.
     const StringVariant constant(source);
     StringVariant const_copy(constant);
     assert(ravig31::get<1>(const_copy) == "hello");
-    copied.get<1>() = "changed";
-    assert(source.get<1>() == "hello");
+    ravig31::get<1>(copied) = "changed";
+    assert(ravig31::get<1>(source) == "hello");
 
     StringVariant destination(std::string{"old"});
     destination = source;
-    assert(destination.get<1>() == "hello");
+    assert(ravig31::get<1>(destination) == "hello");
     StringVariant number(42);
     destination = number;
-    assert(destination.index() == 0 && destination.get<0>() == 42);
+    assert(destination.index() == 0 && ravig31::get<0>(destination) == 42);
     destination = source;
-    assert(destination.index() == 1 && destination.get<1>() == "hello");
+    assert(destination.index() == 1 && ravig31::get<1>(destination) == "hello");
     auto& alias = destination;
     assert(std::addressof(destination = alias) == std::addressof(destination));
-    assert(destination.get<1>() == "hello");
+    assert(ravig31::get<1>(destination) == "hello");
 }
 
 void moving_and_assignment() {
     PointerVariant source(std::make_unique<int>(42));
     PointerVariant moved(std::move(source));
-    assert(moved.index() == 1 && *moved.get<1>() == 42);
-    assert(source.index() == 1 && source.get<1>() == nullptr);
+    assert(moved.index() == 1 && *ravig31::get<1>(moved) == 42);
+    assert(source.index() == 1 && ravig31::get<1>(source) == nullptr);
 
     PointerVariant destination(std::make_unique<int>(7));
     destination = std::move(moved);
-    assert(*destination.get<1>() == 42 && moved.get<1>() == nullptr);
+    assert(*ravig31::get<1>(destination) == 42 && ravig31::get<1>(moved) == nullptr);
     PointerVariant number(99);
     number = std::move(destination);
-    assert(number.index() == 1 && *number.get<1>() == 42);
-    assert(destination.index() == 1 && destination.get<1>() == nullptr);
+    assert(number.index() == 1 && *ravig31::get<1>(number) == 42);
+    assert(destination.index() == 1 && ravig31::get<1>(destination) == nullptr);
     PointerVariant integer(12);
     number = std::move(integer);
-    assert(number.index() == 0 && number.get<0>() == 12);
+    assert(number.index() == 0 && ravig31::get<0>(number) == 12);
 
     auto& alias = number;
     assert(std::addressof(number = std::move(alias)) == std::addressof(number));
-    assert(number.get<0>() == 12);
+    assert(ravig31::get<0>(number) == 12);
 }
 
 void converting_assignment() {
     StringVariant value;
     assert(std::addressof(value = 42) == std::addressof(value));
-    assert(value.get<0>() == 42);
+    assert(ravig31::get<0>(value) == 42);
     std::string text = "hello";
     value = text;
-    assert(value.index() == 1 && value.get<1>() == "hello");
+    assert(value.index() == 1 && ravig31::get<1>(value) == "hello");
     value = std::string{"world"};
-    assert(value.get<1>() == "world" && text == "hello");
+    assert(ravig31::get<1>(value) == "world" && text == "hello");
     value = 7;
-    assert(value.index() == 0 && value.get<0>() == 7);
+    assert(value.index() == 0 && ravig31::get<0>(value) == 7);
 
     PointerVariant pointer;
     pointer = std::make_unique<int>(42);
-    assert(pointer.index() == 1 && *pointer.get<1>() == 42);
+    assert(pointer.index() == 1 && *ravig31::get<1>(pointer) == 42);
     auto replacement = std::make_unique<int>(99);
     pointer = std::move(replacement);
-    assert(*pointer.get<1>() == 99 && replacement == nullptr);
+    assert(*ravig31::get<1>(pointer) == 99 && replacement == nullptr);
 }
 
 struct Tracked {
@@ -205,18 +231,18 @@ void exceptions_and_empty_state() {
     assert(live.valueless_by_exception());
     TestVariant replacement(99);
     live = replacement;
-    assert(live.get<0>() == 99);
+    assert(ravig31::get<0>(live) == 99);
     live = std::move(empty_move);
     assert(live.valueless_by_exception());
     live = TestVariant(77);
-    assert(live.get<0>() == 77);
+    assert(ravig31::get<0>(live) == 77);
 
     empty.swap(empty_copy);
     assert(empty.valueless_by_exception() && empty_copy.valueless_by_exception());
     live.swap(empty);
-    assert(live.valueless_by_exception() && empty.get<0>() == 77);
+    assert(live.valueless_by_exception() && ravig31::get<0>(empty) == 77);
     live.swap(empty);
-    assert(live.get<0>() == 77 && empty.valueless_by_exception());
+    assert(ravig31::get<0>(live) == 77 && empty.valueless_by_exception());
 
     ThrowOnCopy alternative;
     threw = false;
@@ -227,7 +253,7 @@ void exceptions_and_empty_state() {
     }
     assert(threw && live.valueless_by_exception());
     live = 123;
-    assert(live.get<0>() == 123);
+    assert(ravig31::get<0>(live) == 123);
 }
 
 namespace custom {
@@ -244,19 +270,19 @@ void swap(Value& first, Value& second) noexcept {
 void swapping() {
     StringVariant first(42), second(std::string{"hello"});
     first.swap(second);
-    assert(first.get<1>() == "hello" && second.get<0>() == 42);
+    assert(ravig31::get<1>(first) == "hello" && ravig31::get<0>(second) == 42);
     StringVariant third(std::string{"world"});
     first.swap(third);
-    assert(first.get<1>() == "world" && third.get<1>() == "hello");
+    assert(ravig31::get<1>(first) == "world" && ravig31::get<1>(third) == "hello");
     second.swap(second);
-    assert(second.get<0>() == 42);
+    assert(ravig31::get<0>(second) == 42);
     StringVariant number(99);
     second.swap(number);
-    assert(second.get<0>() == 99 && number.get<0>() == 42);
+    assert(ravig31::get<0>(second) == 99 && ravig31::get<0>(number) == 42);
 
     ravig31::variant<int, custom::Value> a(custom::Value{1}), b(custom::Value{2});
     a.swap(b);
-    assert(a.get<1>().number == 2 && b.get<1>().number == 1);
+    assert(ravig31::get<1>(a).number == 2 && ravig31::get<1>(b).number == 1);
     assert(custom::swaps == 1);
 }
 
@@ -265,15 +291,16 @@ void swapping() {
 int main() {
 #if defined(TEST_DUPLICATE_TYPE)
     ravig31::variant<int, int> value;
-    (void)value.get<int>();
+    (void)ravig31::get<int>(value);
 #elif defined(TEST_MISSING_TYPE)
     StringVariant value;
-    (void)value.get<double>();
+    (void)ravig31::get<double>(value);
 #elif defined(TEST_INVALID_INDEX)
     StringVariant value;
-    (void)value.get<2>();
+    (void)ravig31::get<2>(value);
 #else
     construction_and_access();
+    get_returns_references();
     copying_and_assignment();
     moving_and_assignment();
     converting_assignment();

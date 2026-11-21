@@ -8,6 +8,22 @@
 namespace ravig31 {
 
 template <typename... AlternativeTypes>
+class variant;
+
+// forward declarations (also needed in test.cpp) 
+template <std::size_t I, typename... AlternativeTypes>
+constexpr decltype(auto) get(const variant<AlternativeTypes...>& value);
+
+template <std::size_t I, typename... AlternativeTypes>
+constexpr decltype(auto) get(variant<AlternativeTypes...>& value);
+
+template <typename TargetType, typename... AlternativeTypes>
+constexpr decltype(auto) get(const variant<AlternativeTypes...>& value);
+
+template <typename TargetType, typename... AlternativeTypes>
+constexpr decltype(auto) get(variant<AlternativeTypes...>& value);
+
+template <typename... AlternativeTypes>
 class variant {
     static constexpr int empty_index = -1;
 
@@ -36,8 +52,8 @@ class variant {
 
         // no template for Storage means its the current specilisation, which makse sense here as we
         // are just copying
-        constexpr void
-        create_from_copy(const Storage& source, int current_active_index, int travel_count) {
+        constexpr void create_from_copy(
+            const Storage& source, int current_active_index, int travel_count) {
             if (travel_count == current_active_index) {
                 std::construct_at(std::addressof(head), source.head);
                 return;
@@ -47,8 +63,8 @@ class variant {
             tail.create_from_copy(source.tail, current_active_index, travel_count + 1);
         }
 
-        constexpr void
-        assign_from_copy(const Storage& source, int current_active_index, int travel_count) {
+        constexpr void assign_from_copy(
+            const Storage& source, int current_active_index, int travel_count) {
             if (travel_count == current_active_index) {
                 head = source.head;
                 return;
@@ -57,8 +73,8 @@ class variant {
             tail.assign_from_copy(source.tail, current_active_index, travel_count + 1);
         }
 
-        constexpr void
-        create_from_move(Storage& source, int current_active_index, int travel_count) {
+        constexpr void create_from_move(
+            Storage& source, int current_active_index, int travel_count) {
             if (travel_count == current_active_index) {
                 std::construct_at(std::addressof(head), std::move(source.head));
                 return;
@@ -68,8 +84,8 @@ class variant {
             tail.create_from_move(source.tail, current_active_index, travel_count + 1);
         }
 
-        constexpr void
-        assign_from_move(Storage& source, int current_active_index, int travel_count) {
+        constexpr void assign_from_move(
+            Storage& source, int current_active_index, int travel_count) {
             if (travel_count == current_active_index) {
                 head = std::move(source.head);
                 return;
@@ -122,28 +138,28 @@ class variant {
 
         constexpr ~Storage() {};
 
-        constexpr void
-        create_from_copy(const Storage& source, int current_active_index, int travel_count) {
+        constexpr void create_from_copy(
+            const Storage& source, int current_active_index, int travel_count) {
             assert(travel_count == current_active_index);
             std::construct_at(std::addressof(head), source.head);
             return;
         }
 
-        constexpr void
-        assign_from_copy(const Storage& source, int current_active_index, int travel_count) {
+        constexpr void assign_from_copy(
+            const Storage& source, int current_active_index, int travel_count) {
             assert(travel_count == current_active_index);
             head = source.head;
         }
 
-        constexpr void
-        create_from_move(Storage& source, int current_active_index, int travel_count) {
+        constexpr void create_from_move(
+            Storage& source, int current_active_index, int travel_count) {
             assert(travel_count == current_active_index);
             std::construct_at(std::addressof(head), std::move(source.head));
             return;
         }
 
-        constexpr void
-        assign_from_move(Storage& source, int current_active_index, int travel_count) {
+        constexpr void assign_from_move(
+            Storage& source, int current_active_index, int travel_count) {
             assert(travel_count == current_active_index);
             head = std::move(source.head);
         }
@@ -269,7 +285,7 @@ class variant {
 
         // active type is already the input type, just slot in the new value
         if (_active_index == target_index) {
-            get<target_index>() = std::forward<InputType>(value);
+            ravig31::get<target_index>(*this) = std::forward<InputType>(value);
             return *this;
         }
 
@@ -308,64 +324,66 @@ class variant {
     constexpr std::size_t index() const noexcept { return static_cast<std::size_t>(_active_index); }
 
     // access by index
-    template <std::size_t I>
-    constexpr auto& get() {
-        if (I != index()) throw std::bad_variant_access();
-        static_assert(I < sizeof...(AlternativeTypes), "alternative index out of bounds");
 
-        return access<I>(_data);
-    }
+    // const
+    template <std::size_t I, typename... OtherAlternativeTypes>
+    friend constexpr decltype(auto) get(const variant<OtherAlternativeTypes...>& v);
 
-    template <std::size_t I>
-    constexpr const auto& get() const {
-        if (I != index()) throw std::bad_variant_access();
-        static_assert(I < sizeof...(AlternativeTypes), "alternative index out of bounds");
-
-        return access<I>(_data);
-    }
+    // non-const
+    template <std::size_t I, typename... OtherAlternativeTypes>
+    friend constexpr decltype(auto) get(variant<OtherAlternativeTypes...>& v);
 
     // access by type
-    template <typename TargetType>
-    constexpr auto& get() {
-        static_assert(
-            (0 + ... + std::is_same_v<TargetType, AlternativeTypes>) == 1,
-            "type must appear exactly once");
-        constexpr auto index = type_index<TargetType, AlternativeTypes...>();
 
-        return get<index>();
-    }
+    // const
+    template <typename TargetType, typename... OtherAlternativeTypes>
+    friend constexpr decltype(auto) get(const variant<OtherAlternativeTypes...>& v);
 
-    template <typename TargetType>
-    constexpr const auto& get() const {
-        static_assert(
-            (0 + ... + std::is_same_v<TargetType, AlternativeTypes>) == 1,
-            "type must appear exactly once");
-        constexpr auto index = type_index<TargetType, AlternativeTypes...>();
-
-        return get<index>();
-    }
+    // non-const
+    template <typename TargetType, typename... OtherAlternativeTypes>
+    friend constexpr decltype(auto) get(variant<OtherAlternativeTypes...>& v);
 
     constexpr bool valueless_by_exception() const noexcept { return _active_index == empty_index; }
 };
 
 template <std::size_t I, typename... AlternativeTypes>
 constexpr decltype(auto) get(const variant<AlternativeTypes...>& value) {
-    return value.template get<I>();
-}
-
-template <typename TargetType, typename... AlternativeTypes>
-constexpr TargetType get(const variant<AlternativeTypes...>& value) {
-    return value.template get<TargetType>();
+    static_assert(I < sizeof...(AlternativeTypes), "alternative index out of bounds");
+    if constexpr (I < sizeof...(AlternativeTypes)) {
+        if (I != value.index()) throw std::bad_variant_access();
+        return value.template access<I>(value._data);
+    }
 }
 
 template <std::size_t I, typename... AlternativeTypes>
 constexpr decltype(auto) get(variant<AlternativeTypes...>& value) {
-    return value.template get<I>();
+    static_assert(I < sizeof...(AlternativeTypes), "alternative index out of bounds");
+    if constexpr (I < sizeof...(AlternativeTypes)) {
+        if (I != value.index()) throw std::bad_variant_access();
+        return value.template access<I>(value._data);
+    }
 }
 
 template <typename TargetType, typename... AlternativeTypes>
-constexpr TargetType get(variant<AlternativeTypes...>& value) {
-    return value.template get<TargetType>();
+constexpr decltype(auto) get(const variant<AlternativeTypes...>& value) {
+    constexpr auto matches = (0 + ... + std::is_same_v<TargetType, AlternativeTypes>);
+    static_assert(matches == 1, "type must appear exactly once");
+    if constexpr (matches == 1) {
+        constexpr auto index =
+            variant<AlternativeTypes...>::template type_index<TargetType, AlternativeTypes...>();
+        return ravig31::get<index>(value);
+    }
+}
+
+template <typename TargetType, typename... AlternativeTypes>
+constexpr decltype(auto) get(variant<AlternativeTypes...>& value) {
+    constexpr auto matches = (0 + ... + std::is_same_v<TargetType, AlternativeTypes>);
+    static_assert(matches == 1, "type must appear exactly once");
+    if constexpr (matches == 1) {
+        constexpr auto index =
+            variant<AlternativeTypes...>::template type_index<TargetType, AlternativeTypes...>();
+        return ravig31::get<index>(value);
+    }
 }
 
 }  // namespace ravig31

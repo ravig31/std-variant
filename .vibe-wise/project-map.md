@@ -27,8 +27,8 @@ The `.vibe-wise` reports are intended to be included in version control. They de
 - Recursive `Storage<FirstType, RemainingTypes...>` union with `head` and `tail`, plus a last-type specialisation.
 - Exact-type lookup, default and tagged constructors, and an empty-storage tag.
 - Copy/move construction, copy/move assignment, assignment from alternative values, destruction and swap.
-- Mutable and const member access by index and type, with bounds, uniqueness and active-index checks.
-- Free index-based `get` returns references; free type-based `get` returns values to match the requested API.
+- Mutable and const free friend access by index and type, with bounds, uniqueness and active-index checks. Friend declarations are inside the class; declarations and definitions are visible at namespace scope.
+- Both free index-based and type-based `get` preserve references and constness through `decltype(auto)`. Type-based value returns from the original skeleton were changed after an external reference-mutation test exposed the mismatch.
 - Internal empty index `-1`; public `index()` returns `std::size_t`, so empty is exposed as `std::size_t(-1)`. `valueless_by_exception()` queries that state directly.
 
 ## Data and lifetime flow
@@ -45,6 +45,6 @@ Run `make` to compile `variant.cpp` as an object file. Run `make test` to build 
 
 ## Limits and maintenance
 
-This is not a complete replacement for `std::variant`. Exact-match alternative selection, unconditional move-constructor/swap `noexcept`, and the requested free type-based value returns are retained. Full conversion selection, standard special-member constraints, triviality and broader APIs remain out of scope.
+This is not a complete replacement for `std::variant`. Exact-match alternative selection and unconditional move-constructor/swap `noexcept` are retained. Full conversion selection, standard special-member constraints, triviality and broader APIs remain out of scope.
 
 The Makefile still has a leftover `run` target/help text referring to practice variables that are no longer defined. Use the verified `make test` target; cleaning up `run` is a separate maintenance task.

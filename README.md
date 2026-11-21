@@ -71,6 +71,39 @@ Removes references and top-level `const` or `volatile` qualifiers from a type, e
 
 I use it to compare the input type against the alternatives, without references or qualifiers affecting the match.
 
+### `decltype()`
+
+"declared type" is a keyword introduced in C++11 that inspects and yields the exact data type of an expression at compile time without actually evaluating the expression
+
+e.g.
+
+```cpp
+
+const int& ref = 42;
+decltype(ref) x = ref; // x has type: const int&
+
+```
+
+### `decltype(auto)`
+
+introduced in C++14, which uses auto syntax to deduce a type from an initializer while applying decltype's exact reference-preserving rules.
+
+this is what's used for our getters to reference preserve the retrieved types.
+
+### Friend Functions
+
+Is a non-member function that a class explicitly grants access to its `private` and `protected` members.
+
+Rule-of-thumb:
+
+Use `friend` <mark>**only when an operation conceptually belongs to your class’s public interface, cannot be written as a normal member function, and needs direct access to private internals** for correctness or performance
+
+e.g.
+
+* **Asymmetric operators:** Overloading `<<`, `>>`, `+`, `==`, etc., where the left operand is another type (e.g., `std::ostream` or a primitive).
+* **Symmetric binary operators:** Overloading `a + b` or `a == b` so implicit conversions work equally on both the left and right sides.
+* **Two-class bridges:** A function or tightly coupled helper class (like an iterator for a custom container) that must read private data from two classes at once without exposing public getters.
+
 ### Object lifetime and moving
 
 #### Converting constructors

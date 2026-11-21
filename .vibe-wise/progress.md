@@ -73,3 +73,9 @@ The planned educational API is implemented and the current tests pass. Further w
 - Broader conversion selection is not implemented; alternatives are selected by exact type match.
 - Full standard conformance, special-member constraints, triviality and conditional exception specifications remain outside the current scope.
 - Move construction and swap are unconditionally `noexcept`, as retained for this API. Throwing operations on those paths terminate; those failure paths are not runtime-tested.
+
+## Follow-up: free friend access
+
+An external test expected type-based `get` to return a reference, whereas the original API skeleton returned a value. The learner began replacing member access with free friends and then requested implementation fixes. Codex separated the four friend declarations from their namespace-scope definitions, added forward declarations for qualified lookup, and used `decltype(auto)` throughout to preserve mutable/const references. Type lookup uses the argument's alternative pack, and converting assignment now calls free `get` with `*this`.
+
+The tests now use the free API and include a regression that appends to a string through type-based access, checks reference identity and constness, and accesses a move-only alternative by type. `make test` passed, including the existing compile-time rejection cases. This supersedes the earlier description of free type-based access returning values.
