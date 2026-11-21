@@ -1,8 +1,12 @@
 # std-variant
 
-An implementation of `std::variant`. The storage is a recursive union, with an index to track the active alternative. `variant.cpp` contains `ravig31::variant`; `tmp/practice.cpp` is where I built it step by step and is kept locally, outside version control.
+An implementation of `std::variant` i did over a couple of weekends, out of curiosity. I had used stl implementation before in my code and was curious how it worked, also thought it was good opportunity to understand some basic template metaprogramming.
 
-## Concepts I learnt
+The storage is a recursive union, with an index to track the active alternative. `variant.cpp` contains `ravig31::variant`; `tmp/practice.cpp` is where I built it step by step and is kept locally, outside version control. ****
+
+I was also curious to test out [vibe-wise](https://github.com/nykooi1/vibe-wise), a Codex plugin that's prioritises learning and understanding when building with AI. For this project, i used it to go through the concepts step by step, writing the implementation with questions, hints and reviews. The [progress report](.vibe-wise/progress.md) records what I learnt, the tests and what remains, alongside the [project map](.vibe-wise/project-map.md) and [learning profile](.vibe-wise/profile.md). I can say I'm overall quite pleased with how it worked -- never giving me the answer straight away, always attempting to explain the problem in a better way for me to then arrive at the solution by myself.
+
+## personal notes while building (expanded)
 
 ### Template syntax and type selection
 
