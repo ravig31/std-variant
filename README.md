@@ -1,6 +1,6 @@
 # std-variant
 
-An implementation of `std::variant` i did over a couple of weekends, out of curiosity. I had used stl implementation before in my code and was curious how it worked, also thought it was good opportunity to understand some basic template metaprogramming.
+An implementation of `std::variant` i did over a couple of weekends out of curiosity. I had used stl implementation before in my code and was curious how it worked, also thought it was good opportunity to understand some basic template metaprogramming.
 
 The storage is a recursive union, with an index to track the active alternative. `variant.cpp` contains `ravig31::variant`; `tmp/practice.cpp` is where I built it step by step and is kept locally, outside version control.
 
